@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Sender</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            padding: 20px;
+            background-color: #f8f9fa;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .file-item {
+            display: flex;
+            flex-direction: column;
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+        }
+        .file-name {
+            font-weight: bold;
+            word-break: break-word;
+            margin-bottom: 10px;
+        }
+        .file-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+        }
+        .qr-code {
+            text-align: center;
+            margin-top: 20px;
+        }
+        .alert {
+            display: none;
+            margin-bottom: 20px;
+        }
+        .progress-container {
+            display: none;
+            margin-top: 15px;
+        }
+        .nav-tabs {
+            margin-bottom: 20px;
+        }
+        .tab-content {
+            padding-top: 20px;
+        }
+        @media (min-width: 576px) {
+            .file-item {
+                flex-direction: row;
+                justify-content: space-between;
+                align-items: center;
+            }
+            .file-name {
+                margin-bottom: 0;
+                max-width: 50%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="text-center mb-4">File Sender</h1>
+        
+        <div class="alert alert-danger" role="alert" id="errorAlert"></div>
+        <div class="alert alert-success" role="alert" id="successAlert" style="display: none;"></div>
+        
+        <ul class="nav nav-tabs" id="fileTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="upload-tab" data-bs-toggle="tab" data-bs-target="#upload-panel" type="button" role="tab">Upload Files</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="direct-tab" data-bs-toggle="tab" data-bs-target="#direct-panel" type="button" role="tab">Generate Direct Link</button>
+            </li>
+        </ul>
+        
+        <div class="tab-content" id="fileTabsContent">
+            <!-- Upload Files Tab -->
+            <div class="tab-pane fade show active" id="upload-panel" role="tabpanel">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        Upload Files
+                    </div>
+                    <div class="card-body">
+                        <form id="uploadForm" enctype="multipart/form-data">
+                            <div class="mb-3">
+                                <label for="fileInput" class="form-label">Select file to upload and share</label>
+                                <input class="form-control" type="file" id="fileInput" name="file" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary" id="uploadButton">Upload & Generate Link</button>
+                            
+                            <div class="progress-container" id="progressContainer">
+                                <label class="form-label">Uploading...</label>
+                                <div class="progress">
+                                    <div class="progress-bar" role="progressbar" id="uploadProgress" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Direct Link Tab -->
+            <div class="tab-pane fade" id="direct-panel" role="tabpanel">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        Generate Direct Link
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <p>This option allows you to share files directly from their location on your device without uploading them.</p>
+                            <button class="btn btn-primary" id="chooseFileButton">Choose File from Device</button>
+                            <div id="selectedFileInfo" class="mt-3" style="display: none;">
+                                <p>Selected file: <span id="selectedFileName"></span></p>
+                                <button class="btn btn-success" id="generateNativeDirectLinkButton">Generate Direct Link</button>
+                            </div>
+                            <div class="form-text mt-2">
+                                Note: This feature works best in Chrome and Edge browsers. The browser security may still require the file to be temporarily held in memory on the server.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-4" id="linkCard" style="display: none;">
+            <div class="card-header">
+                Download Link
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label for="fileUrl" class="form-label">Share this link with devices on the same network:</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="fileUrl" readonly>
+                        <button class="btn btn-outline-secondary" type="button" id="copyButton">Copy</button>
+                    </div>
+                </div>
+                <div class="qr-code" id="qrCode"></div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>Uploaded Files</span>
+                <button class="btn btn-danger btn-sm" id="deleteAllButton">Clear All Files</button>
+            </div>
+            <div class="card-body">
+                <div id="filesList">
+                    <p class="text-center text-muted" id="noFilesMessage">No files uploaded yet</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const uploadForm = document.getElementById('uploadForm');
+            const filesList = document.getElementById('filesList');
+            const noFilesMessage = document.getElementById('noFilesMessage');
+            const linkCard = document.getElementById('linkCard');
+            const fileUrl = document.getElementById('fileUrl');
+            const copyButton = document.getElementById('copyButton');
+            const qrCode = document.getElementById('qrCode');
+            const errorAlert = document.getElementById('errorAlert');
+            const successAlert = document.getElementById('successAlert');
+            const uploadButton = document.getElementById('uploadButton');
+            const progressContainer = document.getElementById('progressContainer');
+            const uploadProgress = document.getElementById('uploadProgress');
+            const chooseFileButton = document.getElementById('chooseFileButton');
+            const selectedFileInfo = document.getElementById('selectedFileInfo');
+            const selectedFileName = document.getElementById('selectedFileName');
+            const generateNativeDirectLinkButton = document.getElementById('generateNativeDirectLinkButton');
+            const deleteAllButton = document.getElementById('deleteAllButton');
+
+            let selectedFile = null;
+            let fileHandle = null;
+            
+            // Check if File System Access API is supported
+            const isFileSystemAccessSupported = 'showOpenFilePicker' in window;
+            
+            if (!isFileSystemAccessSupported) {
+                chooseFileButton.textContent = 'Select File (Basic Mode)';
+            }
+            
+            // Load existing files
+            fetchFiles();
+
+            // Handle file upload
+            uploadForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                // Hide previous error messages
+                errorAlert.style.display = 'none';
+                
+                const formData = new FormData(uploadForm);
+                const fileInput = document.getElementById('fileInput');
+                
+                if (!fileInput.files[0]) {
+                    showError('Please select a file');
+                    return;
+                }
+                
+                // Show progress and disable button
+                uploadButton.disabled = true;
+                progressContainer.style.display = 'block';
+                uploadProgress.style.width = '0%';
+                
+                try {
+                    const xhr = new XMLHttpRequest();
+                    
+                    // Setup progress tracking
+                    xhr.upload.addEventListener('progress', (event) => {
+                        if (event.lengthComputable) {
+                            const percentComplete = (event.loaded / event.total) * 100;
+                            uploadProgress.style.width = percentComplete + '%';
+                        }
+                    });
+                    
+                    // Create a promise to handle the XHR
+                    const uploadPromise = new Promise((resolve, reject) => {
+                        xhr.open('POST', '/upload');
+                        
+                        xhr.onload = function() {
+                            if (xhr.status >= 200 && xhr.status < 300) {
+                                try {
+                                    const data = JSON.parse(xhr.responseText);
+                                    resolve(data);
+                                } catch(e) {
+                                    reject(new Error('Invalid server response'));
+                                }
+                            } else {
+                                try {
+                                    const errorData = JSON.parse(xhr.responseText);
+                                    reject(new Error(errorData.error || 'Upload failed'));
+                                } catch(e) {
+                                    reject(new Error(`Server error: ${xhr.status}`));
+                                }
+                            }
+                        };
+                        
+                        xhr.onerror = function() {
+                            reject(new Error('Network error occurred'));
+                        };
+                        
+                        xhr.send(formData);
+                    });
+                    
+                    const data = await uploadPromise;
+                    
+                    // Upload completed successfully
+                    uploadProgress.style.width = '100%';
+                    
+                    // Display the download link
+                    fileUrl.value = data.fileUrl;
+                    linkCard.style.display = 'block';
+                    
+                    // Generate QR code
+                    qrCode.innerHTML = '';
+                    new QRCode(qrCode, {
+                        text: data.fileUrl,
+                        width: 128,
+                        height: 128
+                    });
+                    
+                    // Refresh file list
+                    fetchFiles();
+                    
+                    // Reset form and progress
+                    setTimeout(() => {
+                        uploadForm.reset();
+                        progressContainer.style.display = 'none';
+                        uploadButton.disabled = false;
+                    }, 1000);
+                    
+                } catch (error) {
+                    console.error('Error uploading file:', error);
+                    showError(error.message || 'Error uploading file. Please try again.');
+                    progressContainer.style.display = 'none';
+                    uploadButton.disabled = false;
+                }
+            });
+            
+            // Handle choose file button click
+            chooseFileButton.addEventListener('click', async () => {
+                try {
+                    if (isFileSystemAccessSupported) {
+                        // Modern approach using File System Access API
+                        const opts = {
+                            types: [
+                                {
+                                    description: 'All Files',
+                                    accept: {'*/*': []}
+                                },
+                            ],
+                            excludeAcceptAllOption: false,
+                            multiple: false
+                        };
+                        
+                        const handles = await window.showOpenFilePicker(opts);
+                        fileHandle = handles[0];
+                        selectedFile = await fileHandle.getFile();
+                        
+                        selectedFileName.textContent = selectedFile.name;
+                        selectedFileInfo.style.display = 'block';
+                    } else {
+                        // Fallback for browsers that don't support File System Access API
+                        const input = document.createElement('input');
+                        input.type = 'file';
+                        
+                        input.onchange = (e) => {
+                            selectedFile = e.target.files[0];
+                            selectedFileName.textContent = selectedFile.name;
+                            selectedFileInfo.style.display = 'block';
+                        };
+                        
+                        input.click();
+                    }
+                } catch (error) {
+                    console.error('Error selecting file:', error);
+                    showError('Error selecting file. Please try again.');
+                }
+            });
+            
+            // Handle direct link generation with File System Access API
+            generateNativeDirectLinkButton.addEventListener('click', async () => {
+                // Hide previous error messages
+                errorAlert.style.display = 'none';
+                
+                if (!selectedFile) {
+                    showError('Please select a file first');
+                    return;
+                }
+                
+                try {
+                    // We still need to send the file to the server to generate a link
+                    // but we'll make it clear to the user this is a direct link
+                    const formData = new FormData();
+                    formData.append('file', selectedFile);
+                    formData.append('direct', 'true');
+                    
+                    // Send request to create direct link
+                    const response = await fetch('/direct-link', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.error || 'Failed to generate direct link');
+                    }
+                    
+                    const data = await response.json();
+                    
+                    // Display the direct link
+                    fileUrl.value = data.fileUrl;
+                    linkCard.style.display = 'block';
+                    
+                    // Generate QR code
+                    qrCode.innerHTML = '';
+                    new QRCode(qrCode, {
+                        text: data.fileUrl,
+                        width: 128,
+                        height: 128
+                    });
+                    
+                    showSuccess('Direct link generated! File will be served from memory.');
+                    
+                } catch (error) {
+                    console.error('Error generating direct link:', error);
+                    showError(error.message || 'Error generating direct link');
+                }
+            });
+            
+            // Copy URL to clipboard
+            copyButton.addEventListener('click', () => {
+                fileUrl.select();
+                document.execCommand('copy');
+                copyButton.textContent = 'Copied!';
+                setTimeout(() => {
+                    copyButton.textContent = 'Copy';
+                }, 2000);
+            });
+            
+            // Display error message
+            function showError(message) {
+                errorAlert.textContent = message;
+                errorAlert.style.display = 'block';
+                
+                // Scroll to error message
+                errorAlert.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                
+                // Hide after 5 seconds
+                setTimeout(() => {
+                    errorAlert.style.display = 'none';
+                }, 5000);
+            }
+            
+            // Display success message
+            function showSuccess(message) {
+                successAlert.textContent = message;
+                successAlert.style.display = 'block';
+                
+                // Scroll to message
+                successAlert.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                
+                // Hide after 3 seconds
+                setTimeout(() => {
+                    successAlert.style.display = 'none';
+                }, 3000);
+            }
+            
+            // Handle deleting a file
+            async function deleteFile(filename) {
+                try {
+                    const response = await fetch(`/files/${filename}`, {
+                        method: 'DELETE'
+                    });
+                    
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.error || 'Failed to delete file');
+                    }
+                    
+                    showSuccess('File deleted successfully');
+                    fetchFiles(); // Refresh the file list
+                } catch (error) {
+                    console.error('Error deleting file:', error);
+                    showError(error.message || 'Error deleting file');
+                }
+            }
+            
+            // Handle deleting all files
+            deleteAllButton.addEventListener('click', async () => {
+                if (!confirm('Are you sure you want to delete all files?')) {
+                    return;
+                }
+                
+                try {
+                    const response = await fetch('/files', {
+                        method: 'DELETE'
+                    });
+                    
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.error || 'Failed to delete all files');
+                    }
+                    
+                    showSuccess('All files deleted successfully');
+                    fetchFiles(); // Refresh the file list
+                } catch (error) {
+                    console.error('Error deleting all files:', error);
+                    showError(error.message || 'Error deleting all files');
+                }
+            });
+            
+            // Fetch and display uploaded files
+            async function fetchFiles() {
+                try {
+                    const response = await fetch('/files');
+                    if (!response.ok) {
+                        throw new Error('Failed to fetch files');
+                    }
+                    
+                    const files = await response.json();
+                    
+                    if (files.length === 0) {
+                        noFilesMessage.style.display = 'block';
+                        filesList.innerHTML = '<p class="text-center text-muted">No files uploaded yet</p>';
+                        deleteAllButton.style.display = 'none';
+                        return;
+                    }
+                    
+                    noFilesMessage.style.display = 'none';
+                    deleteAllButton.style.display = 'block';
+                    
+                    let filesHtml = '';
+                    files.forEach(file => {
+                        filesHtml += `
+                            <div class="file-item">
+                                <div class="file-name">${file.name}</div>
+                                <div class="file-actions">
+                                    <a href="${file.url}" class="btn btn-sm btn-primary" target="_blank">Download</a>
+                                    <button class="btn btn-sm btn-secondary share-btn" data-url="${file.url}">Share Link</button>
+                                    <button class="btn btn-sm btn-danger delete-btn" data-filename="${file.name}">Delete</button>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                    filesList.innerHTML = filesHtml;
+                    
+                    // Add event listeners to share buttons
+                    document.querySelectorAll('.share-btn').forEach(btn => {
+                        btn.addEventListener('click', () => {
+                            const url = btn.getAttribute('data-url');
+                            fileUrl.value = url;
+                            linkCard.style.display = 'block';
+                            
+                            // Generate QR code
+                            qrCode.innerHTML = '';
+                            new QRCode(qrCode, {
+                                text: url,
+                                width: 128,
+                                height: 128
+                            });
+                        });
+                    });
+                    
+                    // Add event listeners to delete buttons
+                    document.querySelectorAll('.delete-btn').forEach(btn => {
+                        btn.addEventListener('click', () => {
+                            const filename = btn.getAttribute('data-filename');
+                            if (confirm(`Are you sure you want to delete ${filename}?`)) {
+                                deleteFile(filename);
+                            }
+                        });
+                    });
+                    
+                } catch (error) {
+                    console.error('Error fetching files:', error);
+                    showError('Error loading file list');
+                }
+            }
+        });
+    </script>
+</body>
+</html> 
