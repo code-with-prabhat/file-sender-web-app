@@ -15,10 +15,12 @@ A simple web application for sharing files with other devices on your local netw
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) (v12 or higher)
-- npm (comes with Node.js)
+- [Node.js](https://nodejs.org/) (v12 or higher) and npm (comes with Node.js)
+- OR [Docker](https://www.docker.com/) and [Docker Compose](https://docs.docker.com/compose/) (for Docker installation)
 
 ### Installation
+
+#### Using Node.js
 
 1. Clone the repository:
    ```bash
@@ -33,6 +35,8 @@ A simple web application for sharing files with other devices on your local netw
 
 ### Running the Application
 
+#### Using Node.js
+
 1. Start the server:
    ```bash
    npm start
@@ -40,11 +44,31 @@ A simple web application for sharing files with other devices on your local netw
 
 2. Open the URL shown in the console (usually http://your-ip-address:3000)
 
-3. Upload files or generate direct links
+#### Using Docker
 
-4. Share the provided URLs with devices on your network
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/yourusername/file-sender.git
+   cd file-sender
+   ```
 
-5. When finished, press Ctrl+C in the terminal to stop the server
+2. Build and start the Docker container:
+   ```bash
+   docker-compose up -d
+   ```
+
+3. Open your browser and visit http://localhost:3000 or http://your-ip-address:3000
+
+4. To stop the container:
+   ```bash
+   docker-compose down
+   ```
+
+5. Upload files or generate direct links
+
+6. Share the provided URLs with devices on your network
+
+7. When finished, press Ctrl+C in the terminal to stop the server (if using Node.js method)
 
 ## 🔍 How It Works
 
@@ -72,6 +96,8 @@ file-sender/
 ├── package.json        # Project configuration
 ├── package-lock.json   # Dependency lock file
 ├── README.md           # Documentation
+├── Dockerfile          # Docker configuration
+├── docker-compose.yml  # Docker Compose configuration
 └── server.js           # Main application code
 ```
 

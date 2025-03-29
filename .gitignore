@@ -3,6 +3,7 @@ node_modules/
 npm-debug.log
 yarn-debug.log
 yarn-error.log
+package-lock.json
 
 # Environment variables
 .env
@@ -18,6 +19,8 @@ uploads/*
 # OS files
 .DS_Store
 Thumbs.db
+desktop.ini
+*.lnk
 
 # Build and distribution
 dist/
@@ -27,4 +30,37 @@ build/
 .idea/
 .vscode/
 *.swp
-*.swo 
+*.swo
+*.sublime*
+.history/
+*.code-workspace
+
+# Docker related
+*.tar
+docker-compose.override.yml
+.dockerignore
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Testing
+coverage/
+.nyc_output/
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+temp/
+
+# System files
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+$RECYCLE.BIN/ 
