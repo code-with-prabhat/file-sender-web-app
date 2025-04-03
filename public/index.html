@@ -120,6 +120,13 @@
                             <div id="selectedFileInfo" class="mt-3" style="display: none;">
                                 <p>Selected file: <span id="selectedFileName"></span></p>
                                 <button class="btn btn-success" id="generateNativeDirectLinkButton">Generate Direct Link</button>
+                                
+                                <div class="progress-container mt-3" id="directLinkProgressContainer" style="display: none;">
+                                    <label class="form-label">Generating direct link...</label>
+                                    <div class="progress">
+                                        <div class="progress-bar bg-success" role="progressbar" id="directLinkProgress" style="width: 0%"></div>
+                                    </div>
+                                </div>
                             </div>
                             <div class="form-text mt-2">
                                 Note: This feature works best in Chrome and Edge browsers. The browser security may still require the file to be temporarily held in memory on the server.
@@ -180,6 +187,8 @@
             const selectedFileName = document.getElementById('selectedFileName');
             const generateNativeDirectLinkButton = document.getElementById('generateNativeDirectLinkButton');
             const deleteAllButton = document.getElementById('deleteAllButton');
+            const directLinkProgressContainer = document.getElementById('directLinkProgressContainer');
+            const directLinkProgress = document.getElementById('directLinkProgress');
 
             let selectedFile = null;
             let fileHandle = null;
@@ -341,24 +350,61 @@
                 }
                 
                 try {
+                    // Disable button and show progress
+                    generateNativeDirectLinkButton.disabled = true;
+                    directLinkProgressContainer.style.display = 'block';
+                    directLinkProgress.style.width = '0%';
+                    
                     // We still need to send the file to the server to generate a link
                     // but we'll make it clear to the user this is a direct link
                     const formData = new FormData();
                     formData.append('file', selectedFile);
                     formData.append('direct', 'true');
                     
-                    // Send request to create direct link
-                    const response = await fetch('/direct-link', {
-                        method: 'POST',
-                        body: formData
+                    // Create XHR for progress tracking
+                    const xhr = new XMLHttpRequest();
+                    
+                    // Setup progress tracking
+                    xhr.upload.addEventListener('progress', (event) => {
+                        if (event.lengthComputable) {
+                            const percentComplete = (event.loaded / event.total) * 100;
+                            directLinkProgress.style.width = percentComplete + '%';
+                        }
                     });
                     
-                    if (!response.ok) {
-                        const errorData = await response.json();
-                        throw new Error(errorData.error || 'Failed to generate direct link');
-                    }
+                    // Create a promise to handle the XHR
+                    const uploadPromise = new Promise((resolve, reject) => {
+                        xhr.open('POST', '/direct-link');
+                        
+                        xhr.onload = function() {
+                            if (xhr.status >= 200 && xhr.status < 300) {
+                                try {
+                                    const data = JSON.parse(xhr.responseText);
+                                    resolve(data);
+                                } catch(e) {
+                                    reject(new Error('Invalid server response'));
+                                }
+                            } else {
+                                try {
+                                    const errorData = JSON.parse(xhr.responseText);
+                                    reject(new Error(errorData.error || 'Upload failed'));
+                                } catch(e) {
+                                    reject(new Error(`Server error: ${xhr.status}`));
+                                }
+                            }
+                        };
+                        
+                        xhr.onerror = function() {
+                            reject(new Error('Network error occurred'));
+                        };
+                        
+                        xhr.send(formData);
+                    });
                     
-                    const data = await response.json();
+                    const data = await uploadPromise;
+                    
+                    // Upload completed
+                    directLinkProgress.style.width = '100%';
                     
                     // Display the direct link
                     fileUrl.value = data.fileUrl;
@@ -374,9 +420,17 @@
                     
                     showSuccess('Direct link generated! File will be served from memory.');
                     
+                    // Reset progress and button
+                    setTimeout(() => {
+                        directLinkProgressContainer.style.display = 'none';
+                        generateNativeDirectLinkButton.disabled = false;
+                    }, 1000);
+                    
                 } catch (error) {
                     console.error('Error generating direct link:', error);
                     showError(error.message || 'Error generating direct link');
+                    directLinkProgressContainer.style.display = 'none';
+                    generateNativeDirectLinkButton.disabled = false;
                 }
             });
             
