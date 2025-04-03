@@ -247,12 +247,9 @@ app.get('/app-info', (req, res) => {
 });
 
 // Start the server
-const server = app.listen(port, '0.0.0.0', () => {
-  const serverUrl = `http://${ip.address()}:${port}`;
-  console.log(`Server running at ${serverUrl}`);
-  
-  // Set environment variable to indicate we're running in desktop mode
-  if (process.env.NW_MODE) {
-    console.log('Running in desktop application mode');
-  }
-}); 
+const PORT = 3000;
+const HOST = '0.0.0.0'; // Bind to all interfaces
+
+app.listen(PORT, HOST, () => {
+  console.log(`Server running at http://localhost:${PORT}`);
+});
