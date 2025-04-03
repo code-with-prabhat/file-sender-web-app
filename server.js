@@ -7,7 +7,7 @@ const crypto = require('crypto');
 const os = require('os');
 
 const app = express();
-const port = 3000;
+const port = process.env.PORT || 3000;
 
 // In-memory storage for direct links
 const directLinks = new Map();
@@ -89,7 +89,11 @@ app.post('/upload', (req, res) => {
     }
     
     try {
-      const fileUrl = `http://${ip.address()}:${port}/uploads/${req.file.filename}`;
+      // Use request host for URL generation instead of IP
+      const host = req.headers.host;
+      const protocol = req.headers['x-forwarded-proto'] || 'http';
+      const fileUrl = `${protocol}://${host}/uploads/${req.file.filename}`;
+      
       res.json({ 
         message: 'File uploaded successfully',
         filename: req.file.filename,
@@ -129,8 +133,10 @@ app.post('/direct-link', (req, res) => {
       
       console.log(`Direct link created for "${req.file.originalname}" (${(req.file.buffer.length / (1024 * 1024)).toFixed(2)} MB) - ID: ${linkId}`);
       
-      // Generate URL for direct access
-      const fileUrl = `http://${ip.address()}:${port}/direct/${linkId}`;
+      // Use request host for URL generation instead of IP
+      const host = req.headers.host;
+      const protocol = req.headers['x-forwarded-proto'] || 'http';
+      const fileUrl = `${protocol}://${host}/direct/${linkId}`;
       
       // Return the direct link
       res.json({
@@ -165,9 +171,12 @@ app.get('/files', (req, res) => {
     }
     
     const files = fs.readdirSync(uploadDir).map(file => {
+      // Use request host for URL generation instead of IP
+      const host = req.headers.host;
+      const protocol = req.headers['x-forwarded-proto'] || 'http';
       return {
         name: file,
-        url: `http://${ip.address()}:${port}/uploads/${file}`
+        url: `${protocol}://${host}/uploads/${file}`
       };
     });
     
@@ -221,35 +230,23 @@ app.delete('/files', (req, res) => {
 
 // Get IP information for the app
 app.get('/app-info', (req, res) => {
-  const networkInterfaces = os.networkInterfaces();
-  const interfaces = [];
-  
-  // Get all network interfaces
-  Object.keys(networkInterfaces).forEach(interfaceName => {
-    const addresses = networkInterfaces[interfaceName];
-    
-    addresses.forEach(address => {
-      // Only include IPv4 addresses and exclude internal interfaces
-      if (address.family === 'IPv4' && !address.internal) {
-        interfaces.push({
-          name: interfaceName,
-          address: address.address
-        });
-      }
-    });
-  });
+  // Use request host for URL instead of IP address
+  const host = req.headers.host;
+  const protocol = req.headers['x-forwarded-proto'] || 'http';
   
   res.json({
-    serverUrl: `http://${ip.address()}:${port}`,
-    interfaces,
+    serverUrl: `${protocol}://${host}`,
+    interfaces: [{ name: 'server', address: host }],
     desktopMode: process.env.NW_APP === 'true'
   });
 });
 
-// Start the server
-const PORT = 3000;
-const HOST = '0.0.0.0'; // Bind to all interfaces
+// For local development
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(port, () => {
+    console.log(`Server running at http://localhost:${port}`);
+  });
+}
 
-app.listen(PORT, HOST, () => {
-  console.log(`Server running at http://localhost:${PORT}`);
-});
+// Export for Vercel serverless deployment
+module.exports = app;
